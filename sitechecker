@@ -1,0 +1,130 @@
+// ==UserScript==
+// @name         site Checker
+// @namespace    http://tampermonkey.net/
+// @version      1.0
+// @description  Checks URLs against VirusTotal and warns if unsafe
+// @author       D Lewis
+// @match        *://*/*
+// @grant        GM_xmlhttpRequest
+// @grant        GM_addStyle
+// ==/UserScript==
+
+(function () {
+    'use strict';
+
+    // Insert your VirusTotal API Key here
+    const API_KEY = 'your_virustotal_api_key';
+
+    // Get the current page's URL
+    const currentUrl = window.location.href;
+
+    // Function to query VirusTotal
+    function checkUrlSafety(url) {
+        const apiUrl = `https://www.virustotal.com/api/v3/urls`;
+
+        // Encode URL as VirusTotal requires it
+        const encodedUrl = btoa(url);
+
+        GM_xmlhttpRequest({
+            method: "POST",
+            url: apiUrl,
+            headers: {
+                "x-apikey": API_KEY,
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            data: `url=${url}`,
+            onload: function (response) {
+                if (response.status === 200) {
+                    const result = JSON.parse(response.responseText);
+                    const id = result.data.id;
+
+                    // Query the URL analysis report
+                    getUrlReport(id);
+                } else {
+                    console.error('Error querying VirusTotal:', response);
+                }
+            }
+        });
+    }
+
+    // Function to retrieve the report
+    function getUrlReport(id) {
+        const reportUrl = `https://www.virustotal.com/api/v3/analyses/${id}`;
+
+        GM_xmlhttpRequest({
+            method: "GET",
+            url: reportUrl,
+            headers: {
+                "x-apikey": API_KEY,
+            },
+            onload: function (response) {
+                if (response.status === 200) {
+                    const result = JSON.parse(response.responseText);
+                    const malicious = result.data.attributes.stats.malicious || 0;
+
+                    if (malicious > 0) {
+                        showWarning();
+                    }
+                } else {
+                    console.error('Error retrieving report:', response);
+                }
+            }
+        });
+    }
+
+    // Function to show the warning overlay
+    function showWarning() {
+        const overlay = document.createElement('div');
+        overlay.id = 'vt-warning-overlay';
+        overlay.innerHTML = `
+            <div id="vt-warning-content">
+                <h1>Warning: This site may be unsafe!</h1>
+                <p>This page has been flagged as potentially unsafe. Do you want to proceed?</p>
+                <button id="vt-continue">Continue</button>
+                <button id="vt-exit">Exit</button>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+
+        // Add event listeners for buttons
+        document.getElementById('vt-continue').addEventListener('click', () => {
+            overlay.remove();
+        });
+
+        document.getElementById('vt-exit').addEventListener('click', () => {
+            window.location.href = 'about:blank';
+        });
+    }
+
+    // Add some basic styles for the overlay
+    GM_addStyle(`
+        #vt-warning-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        #vt-warning-content {
+            text-align: center;
+            background: #333;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px black;
+        }
+        #vt-warning-content button {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+        }
+    `);
+
+    // Initiate the check
+    checkUrlSafety(currentUrl);
+})();

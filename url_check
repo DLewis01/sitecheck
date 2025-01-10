@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         URL Checker
+// @name         site Checker
 // @namespace    http://tampermonkey.net/
 // @version      1.0
 // @description  Checks URLs against VirusTotal and warns if unsafe
